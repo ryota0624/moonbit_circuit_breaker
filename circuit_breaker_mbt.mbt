@@ -211,6 +211,31 @@ pub fn[T, E : Error] CircuitBreakerRunResult::unwrap_or_error(
   }
 }
 
+///|
+pub fn[T, E, U] CircuitBreakerRunResult::map(
+  self : CircuitBreakerRunResult[T, E],
+  f : (T) -> U,
+) -> CircuitBreakerRunResult[U, E] {
+  match self {
+    Success(v) => Success(f(v))
+    Failure(err) => Failure(err)
+    Rejected(err) => Rejected(err)
+  }
+}
+
+///|
+pub fn[T, E, U] CircuitBreakerRunResult::map_errors(
+  self : CircuitBreakerRunResult[T, E],
+  map_failure : (E) -> U,
+  map_rejected : (CircuitBreakerError) -> U,
+) -> Result[T, U] {
+  match self {
+    Success(v) => Ok(v)
+    Failure(err) => map_failure(err) |> Err
+    Rejected(err) => map_rejected(err) |> Err
+  }
+}
+
 // Execute runs the given function if the CircuitBreaker accepts it
 
 ///|

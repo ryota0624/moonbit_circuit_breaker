@@ -19,13 +19,13 @@ test "Counts basic operations" {
   inspect(counts.requests, content="1")
   counts.on_success()
   inspect(counts.total_successes, content="1")
-  inspect(counts.consecutive_successes, content="1")
-  inspect(counts.consecutive_failures, content="0")
+  inspect(counts.consecutive_successes(), content="1")
+  inspect(counts.consecutive_failures(), content="0")
   counts.on_request()
   counts.on_failure()
   inspect(counts.total_failures, content="1")
-  inspect(counts.consecutive_failures, content="1")
-  inspect(counts.consecutive_successes, content="0")
+  inspect(counts.consecutive_failures(), content="1")
+  inspect(counts.consecutive_successes(), content="0")
 }
 
 ///|
@@ -36,7 +36,7 @@ test "Counts clear" {
   counts.clear()
   inspect(counts.requests, content="0")
   inspect(counts.total_successes, content="0")
-  inspect(counts.consecutive_successes, content="0")
+  inspect(counts.consecutive_successes(), content="0")
 }
 
 ///|
@@ -59,8 +59,8 @@ test "CircuitBreaker initial state" {
 test "CircuitBreaker successful request in Closed state" {
   let settings : Settings[Unit, String] = Settings::default()
   let cb = CircuitBreaker::new(settings)
-  let result = cb.execute(fn() { Ok(()) })
-  inspect(result, content="Ok(())")
+  let result = cb.run_sync(fn() { Ok(()) })
+  inspect(result, content="Success(())")
   inspect(cb.state(), content="Closed")
   inspect(cb.counts().total_successes, content="1")
   inspect(cb.counts().requests, content="1")
@@ -70,11 +70,11 @@ test "CircuitBreaker successful request in Closed state" {
 test "CircuitBreaker failed request in Closed state" {
   let settings : Settings[Unit, String] = Settings::default()
   let cb = CircuitBreaker::new(settings)
-  let result = cb.execute(fn() -> Result[Unit, String] { Err("error") })
-  inspect(result, content="Err(\"error\")")
+  let result = cb.run_sync(fn() -> Result[Unit, String] { Err("error") })
+  inspect(result, content="Failure(\"error\")")
   inspect(cb.state(), content="Closed")
   inspect(cb.counts().total_failures, content="1")
-  inspect(cb.counts().consecutive_failures, content="1")
+  inspect(cb.counts().consecutive_failures(), content="1")
 }
 
 ///|
@@ -84,11 +84,11 @@ test "CircuitBreaker transitions to Open after consecutive failures" {
 
   // Default ready_to_trip is consecutive_failures > 5
   for i = 0; i < 6; i = i + 1 {
-    let _result = cb.execute(fn() -> Result[Unit, String] { Err("error") })
+    let _result = cb.run_sync(fn() -> Result[Unit, String] { Err("error") })
 
   }
   inspect(cb.state(), content="Open")
-  inspect(cb.counts().consecutive_failures, content="0") // Cleared after state change
+  inspect(cb.counts().consecutive_failures(), content="0") // Cleared after state change
 }
 
 ///|
@@ -98,14 +98,14 @@ test "CircuitBreaker rejects request in Open state" {
 
   // Trip the circuit (default ready_to_trip is consecutive_failures > 5)
   for i = 0; i < 6; i = i + 1 {
-    let _result = cb.execute(fn() -> Result[Unit, String] { Err("error") })
+    let _result = cb.run_sync(fn() -> Result[Unit, String] { Err("error") })
 
   }
   inspect(cb.state(), content="Open")
 
   // Next request should be rejected
-  // Note: In actual implementation, this would return an error
-  // For now, we'll just check the state
+  let result = cb.run_sync(fn() -> Result[Unit, String] { Ok(()) })
+  inspect(result, content="Rejected(OpenCircuit)")
 }
 
 ///|
@@ -115,7 +115,7 @@ test "CircuitBreaker custom ready_to_trip" {
 
   // Execute 6 failed requests to trip the circuit
   for i = 0; i < 6; i = i + 1 {
-    let _result = cb.execute(fn() -> Result[Unit, String] { Err("error") })
+    let _result = cb.run_sync(fn() -> Result[Unit, String] { Err("error") })
 
   }
   inspect(cb.state(), content="Open")
@@ -128,7 +128,7 @@ test "CircuitBreaker state change callback" {
 
   // Trip the circuit
   for i = 0; i < 6; i = i + 1 {
-    let _result = cb.execute(fn() -> Result[Unit, String] { Err("error") })
+    let _result = cb.run_sync(fn() -> Result[Unit, String] { Err("error") })
 
   }
 
