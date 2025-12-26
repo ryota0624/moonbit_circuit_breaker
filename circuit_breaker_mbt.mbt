@@ -169,28 +169,71 @@ pub fn[T, E] CircuitBreaker::counts(self : CircuitBreaker[T, E]) -> Counts {
   self.counts
 }
 
+// CircuitBreakerError represents errors returned by CircuitBreaker
+
+///|
+pub suberror CircuitBreakerError {
+  TooManyRequests
+  OpenCircuit
+}
+
+// CircuitBreakerRunResult represents the result of running a function through the CircuitBreaker
+
+///|
+pub enum CircuitBreakerRunResult[T, E] {
+  Success(T)
+  Failure(E)
+  Rejected(CircuitBreakerError)
+}
+
+///|
+fn[T, E] CircuitBreakerRunResult::from_result(
+  result : Result[Result[T, E], CircuitBreakerError],
+) -> CircuitBreakerRunResult[T, E] {
+  match result {
+    Ok(value) =>
+      match value {
+        Ok(v) => Success(v)
+        Err(err) => Failure(err)
+      }
+    Err(err) => Rejected(err)
+  }
+}
+
+///|
+pub fn[T, E : Error] CircuitBreakerRunResult::unwrap_or_error(
+  self : CircuitBreakerRunResult[T, E],
+) -> T raise {
+  match self {
+    Success(v) => v
+    Failure(err) => raise err
+    Rejected(err) => raise err
+  }
+}
+
 // Execute runs the given function if the CircuitBreaker accepts it
 
 ///|
 pub fn[T, E] CircuitBreaker::run_sync(
   self : CircuitBreaker[T, E],
   f : () -> Result[T, E],
-) -> Result[T, E] {
+) -> CircuitBreakerRunResult[T, E] {
   self
   .before_request()
-  .bind(fn(generation) {
+  .map(fn(generation) {
     let result = f()
     let is_success = (self.settings.is_successful)(result)
     self.after_request(generation, is_success)
     result
   })
+  |> CircuitBreakerRunResult::from_result
 }
 
 ///|
 pub fn[T, E : Error] CircuitBreaker::try_sync(
   self : CircuitBreaker[T, E],
   f : () -> T raise E,
-) -> T raise E {
+) -> T raise {
   self.run_sync(fn() { try? f() }).unwrap_or_error()
 }
 
@@ -198,14 +241,17 @@ pub fn[T, E : Error] CircuitBreaker::try_sync(
 pub async fn[T, E] CircuitBreaker::run_async(
   self : CircuitBreaker[T, E],
   f : async () -> Result[T, E] noraise,
-) -> Result[T, E] noraise {
+) -> CircuitBreakerRunResult[T, E] noraise {
   match self.before_request() {
-    Err(e) => Err(e)
+    Err(e) => Rejected(e)
     Ok(generation) => {
       let result = f()
       let is_success = (self.settings.is_successful)(result)
       self.after_request(generation, is_success)
-      result
+      match result {
+        Ok(v) => Success(v)
+        Err(err) => Failure(err)
+      }
     }
   }
 }
@@ -214,7 +260,7 @@ pub async fn[T, E] CircuitBreaker::run_async(
 pub async fn[T, E : Error] CircuitBreaker::try_async(
   self : CircuitBreaker[T, E],
   f : async () -> T raise E,
-) -> T raise E {
+) -> T {
   self
   .run_async(async fn() -> Result[T, E] noraise { try? f() })
   .unwrap_or_error()
@@ -223,7 +269,7 @@ pub async fn[T, E : Error] CircuitBreaker::try_async(
 ///|
 fn[T, E] CircuitBreaker::before_request(
   self : CircuitBreaker[T, E],
-) -> Result[Int64, E] {
+) -> Result[Int64, CircuitBreakerError] {
   let now = get_current_time_ms()
   let mut state = self.state
   let mut generation = self.generation
@@ -243,10 +289,10 @@ fn[T, E] CircuitBreaker::before_request(
     }
   }
   match state {
-    Open => Err(abort("circuit breaker is open")) // This should return proper error
+    Open => Err(CircuitBreakerError::OpenCircuit) // This should return proper error
     HalfOpen =>
       if self.counts.requests >= self.settings.max_requests {
-        Err(abort("too many requests"))
+        CircuitBreakerError::TooManyRequests |> Err
       } else {
         self.counts.on_request()
         Ok(generation)
