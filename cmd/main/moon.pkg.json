@@ -2,7 +2,7 @@
   "is-main": true,
   "import": [
     {
-      "path": "ryota0624/circuit_breaker_mbt",
+      "path": "ryota0624/circuit_breaker",
       "alias": "lib"
     }
   ]
