@@ -345,41 +345,51 @@ pub async fn[T, E : Error] CircuitBreaker::try_async(
 }
 
 ///|
+fn[T, E] CircuitBreaker::state_transition_on_before_request(
+  self : CircuitBreaker[T, E],
+  state : State,
+  now : Int64,
+) -> Unit {
+  match state {
+    Open =>
+      // Check if we need to transition from Open to HalfOpen
+      if self.expiry <= now {
+        self.change_state(HalfOpen, now)
+      } else {
+        ()
+      }
+    HalfOpen => ()
+    Closed => {
+      // Check if interval has passed in Closed state
+      if self.settings.interval > 0L && self.expiry <= now {
+        self.to_new_generation(now)
+      }
+      ()
+    }
+  }
+}
+
+///|
 fn[T, E] CircuitBreaker::before_request(
   self : CircuitBreaker[T, E],
 ) -> Result[Int64, CircuitBreakerError] {
   let now = get_current_time_ms()
-  let mut state = self.state
-  let mut generation = self.generation
-
-  // Check if we need to transition from Open to HalfOpen
-  if state == Open {
-    if self.expiry <= now {
-      self.to_new_generation(now)
-      state = HalfOpen
-      generation = self.generation
-    }
-  } else if state == Closed {
-    // Check if interval has passed in Closed state
-    if self.settings.interval > 0L && self.expiry <= now {
-      self.to_new_generation(now)
-      generation = self.generation
-    }
-  }
-  match state {
+  self.state_transition_on_before_request(self.state, now)
+  let generation = self.generation
+  let result = match self.state {
     Open => Err(CircuitBreakerError::OpenCircuit) // This should return proper error
     HalfOpen =>
       if self.counts.requests >= self.settings.max_requests {
         CircuitBreakerError::TooManyRequests |> Err
       } else {
-        self.counts.on_request()
         Ok(generation)
       }
-    Closed => {
-      self.counts.on_request()
-      Ok(generation)
-    }
+    Closed => Ok(generation)
   }
+  if result is Err(_) {
+    self.counts.on_request()
+  }
+  result
 }
 
 ///|
@@ -413,7 +423,7 @@ fn[T, E] CircuitBreaker::on_success(
     Closed => ()
     HalfOpen =>
       if self.counts.consecutive_successes() >= self.settings.max_requests {
-        self.set_state(Closed, now)
+        self.change_state(Closed, now)
       }
     Open => ()
   }
@@ -429,15 +439,15 @@ fn[T, E] CircuitBreaker::on_failure(
   match state {
     Closed =>
       if (self.settings.ready_to_trip)(self.counts) {
-        self.set_state(Open, now)
+        self.change_state(Open, now)
       }
-    HalfOpen => self.set_state(Open, now)
+    HalfOpen => self.change_state(Open, now)
     Open => ()
   }
 }
 
 ///|
-fn[T, E] CircuitBreaker::set_state(
+fn[T, E] CircuitBreaker::change_state(
   self : CircuitBreaker[T, E],
   new_state : State,
   now : Int64,
