@@ -115,18 +115,67 @@ pub fn[T, E] Settings::default() -> Settings[T, E] {
   }
 }
 
-// Sleep function for JS backend using setTimeout
-
 ///|
-fn sleep_js(ms : Int64) -> Unit {
-  // FFI implementation using JavaScript's setTimeout
-  // This will be replaced with proper async implementation
-  let ms_int = ms.to_int()
-  sleep_js_ffi(ms_int)
+pub fn[T, E] Settings::with_name(
+  self : Settings[T, E],
+  name : String,
+) -> Settings[T, E] {
+  { ..self, name, }
 }
 
 ///|
-fn sleep_js_ffi(ms : Int) -> Unit = "setTimeout" "() => {}, $ms"
+pub fn[T, E] Settings::with_max_requests(
+  self : Settings[T, E],
+  max_requests : Int64,
+) -> Settings[T, E] {
+  { ..self, max_requests, }
+}
+
+///|
+pub fn[T, E] Settings::with_interval(
+  self : Settings[T, E],
+  interval : Int64,
+) -> Settings[T, E] {
+  { ..self, interval, }
+}
+
+///|
+pub fn[T, E] Settings::with_timeout(
+  self : Settings[T, E],
+  timeout : Int64,
+) -> Settings[T, E] {
+  { ..self, timeout, }
+}
+
+///|
+/// `suspend` will suspend the execution of the current coroutine.
+/// The suspension will be handled by a callback passed to `suspend`
+async fn[T, E : Error] suspend(
+  // `f` is a callback for handling suspension
+  f : (
+    // the first parameter of `f` is used to resume the execution of the coroutine normally
+    (T) -> Unit,
+    // the second parameter of `f` is used to cancel the execution of the current coroutine
+    // by throwing an error at suspension point
+    (E) -> Unit,
+  ) -> Unit,
+) -> T raise E = "%async.suspend"
+
+// Sleep function for JS backend using setTimeout
+
+///|
+pub async fn sleep_js(ms : Int64) -> Unit {
+  // FFI implementation using JavaScript's setTimeout
+  // This will be replaced with proper async implementation
+  let ms_int = ms.to_int()
+  suspend(fn(resolve, _reject) {
+    js_set_timeout(fn() { resolve(()) }, duration=ms_int)
+  })
+}
+
+///|
+extern "js" fn js_set_timeout(f : () -> Unit, duration~ : Int) -> Unit =
+  #| (f, duration) => setTimeout(f, duration)
 
 // CircuitBreaker is a state machine to prevent sending requests that are likely to fail
 
@@ -155,8 +204,12 @@ pub fn[T, E] CircuitBreaker::new(
 // For now, return 0 as a placeholder since FFI setup is complex
 
 ///|
+extern "js" fn js_date_now() -> Int64 =
+  #| () => Date.now()
+
+///|
 fn get_current_time_ms() -> Int64 {
-  0L
+  js_date_now()
 }
 
 ///|
@@ -175,7 +228,7 @@ pub fn[T, E] CircuitBreaker::counts(self : CircuitBreaker[T, E]) -> Counts {
 pub suberror CircuitBreakerError {
   TooManyRequests
   OpenCircuit
-}
+} derive(Show)
 
 // CircuitBreakerRunResult represents the result of running a function through the CircuitBreaker
 
@@ -184,7 +237,7 @@ pub enum CircuitBreakerRunResult[T, E] {
   Success(T)
   Failure(E)
   Rejected(CircuitBreakerError)
-}
+} derive(Show)
 
 ///|
 fn[T, E] CircuitBreakerRunResult::from_result(

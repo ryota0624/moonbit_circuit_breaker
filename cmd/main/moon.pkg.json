@@ -4,6 +4,10 @@
     {
       "path": "ryota0624/circuit_breaker",
       "alias": "lib"
+    },
+    {
+      "path": "moonbitlang/async",
+      "alias": "async"
     }
   ]
 }
