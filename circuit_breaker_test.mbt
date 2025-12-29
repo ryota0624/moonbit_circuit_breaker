@@ -138,3 +138,84 @@ test "CircuitBreaker state change callback" {
   // Just check that the state changed to Open
   inspect(cb.state(), content="Open")
 }
+
+///|
+test "CircuitBreaker transitions from Open to HalfOpen after timeout" {
+  // Create a custom time source that we can control
+  let mut current_time = 0L
+  let get_now = fn() { current_time }
+  let settings : Settings[Unit, String] = Settings::default()
+    .with_timeout(10000L) // 10 seconds timeout
+    .with_get_now(get_now)
+  let cb = CircuitBreaker::new(settings)
+
+  // Initial state should be Closed
+  inspect(cb.state(), content="Closed")
+
+  // Trip the circuit (default ready_to_trip is consecutive_failures > 5)
+  for i = 0; i < 6; i = i + 1 {
+    let _result = cb.run_sync(fn() -> Result[Unit, String] { Err("error") })
+
+  }
+
+  // State should now be Open
+  inspect(cb.state(), content="Open")
+
+  // Try a request immediately - should be rejected
+  let result1 = cb.run_sync(fn() -> Result[Unit, String] { Ok(()) })
+  inspect(result1, content="Rejected(OpenCircuit)")
+  inspect(cb.state(), content="Open")
+
+  // Advance time by 5 seconds (not enough to trigger HalfOpen)
+  current_time = 5000L
+  let result2 = cb.run_sync(fn() -> Result[Unit, String] { Ok(()) })
+  inspect(result2, content="Rejected(OpenCircuit)")
+  inspect(cb.state(), content="Open")
+
+  // Advance time by another 5 seconds (total 10 seconds - should trigger HalfOpen)
+  current_time = 10000L
+  let result3 = cb.run_sync(fn() -> Result[Unit, String] { Ok(()) })
+
+  // The request should have succeeded (not rejected)
+  inspect(result3, content="Success(())")
+
+  // After successful request in HalfOpen, should transition to Closed
+  // (since default max_requests is 1)
+  inspect(cb.state(), content="Closed")
+}
+
+///|
+test "CircuitBreaker remains Open before timeout expires" {
+  let mut current_time = 0L
+  let get_now = fn() { current_time }
+  let settings : Settings[Unit, String] = Settings::default()
+    .with_timeout(20000L) // 20 seconds timeout
+    .with_get_now(get_now)
+  let cb = CircuitBreaker::new(settings)
+
+  // Trip the circuit
+  for i = 0; i < 6; i = i + 1 {
+    let _result = cb.run_sync(fn() -> Result[Unit, String] { Err("error") })
+
+  }
+  inspect(cb.state(), content="Open")
+
+  // Advance time but not enough for timeout
+  current_time = 19999L
+  let result = cb.run_sync(fn() -> Result[Unit, String] { Ok(()) })
+
+  // Should still be rejected and remain Open
+  inspect(result, content="Rejected(OpenCircuit)")
+  inspect(cb.state(), content="Open")
+
+  // Advance time to exactly timeout
+  current_time = 20000L
+  let result2 = cb.run_sync(fn() -> Result[Unit, String] { Ok(()) })
+
+  // The request should succeed
+  inspect(result2, content="Success(())")
+
+  // After successful request in HalfOpen, should transition to Closed
+  // (since default max_requests is 1)
+  inspect(cb.state(), content="Closed")
+}
