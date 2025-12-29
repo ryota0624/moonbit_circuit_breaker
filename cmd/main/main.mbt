@@ -51,7 +51,7 @@ async fn main {
 
   // Wait using sleep_js
   println("   Waiting 2 seconds with @lib.sleep_js...")
-  @lib.sleep_js(2000L)
+  sleep(2000)
   println("   Wait complete! sleep_js successfully executed")
   println("")
   println("   Note: The circuit is still Open because only 2 seconds passed")
@@ -136,3 +136,39 @@ async fn main {
   println("")
   println("=== Walkthrough Complete ===")
 }
+
+///|
+#cfg(target="js")
+extern "js" fn js_set_timeout(f : () -> Unit, duration~ : Int) -> Unit =
+  #| (f, duration) => setTimeout(f, duration)
+
+///|
+#cfg(target="js")
+async fn sleep(ms : Int64) -> Unit {
+  // FFI implementation using JavaScript's setTimeout
+  // This will be replaced with proper async implementation
+  let ms_int = ms.to_int()
+  suspend(fn(resolve, _reject) {
+    js_set_timeout(fn() { resolve(()) }, duration=ms_int)
+  })
+}
+
+///|
+#cfg(target="native")
+async fn sleep(ms : Int) -> Unit {
+  @async.sleep(ms)
+}
+
+///|
+/// `suspend` will suspend the execution of the current coroutine.
+/// The suspension will be handled by a callback passed to `suspend`
+async fn[T, E : Error] suspend(
+  // `f` is a callback for handling suspension
+  f : (
+    // the first parameter of `f` is used to resume the execution of the coroutine normally
+    (T) -> Unit,
+    // the second parameter of `f` is used to cancel the execution of the current coroutine
+    // by throwing an error at suspension point
+    (E) -> Unit,
+  ) -> Unit,
+) -> T raise E = "%async.suspend"

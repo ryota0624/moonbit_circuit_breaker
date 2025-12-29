@@ -147,36 +147,6 @@ pub fn[T, E] Settings::with_timeout(
   { ..self, timeout, }
 }
 
-///|
-/// `suspend` will suspend the execution of the current coroutine.
-/// The suspension will be handled by a callback passed to `suspend`
-async fn[T, E : Error] suspend(
-  // `f` is a callback for handling suspension
-  f : (
-    // the first parameter of `f` is used to resume the execution of the coroutine normally
-    (T) -> Unit,
-    // the second parameter of `f` is used to cancel the execution of the current coroutine
-    // by throwing an error at suspension point
-    (E) -> Unit,
-  ) -> Unit,
-) -> T raise E = "%async.suspend"
-
-// Sleep function for JS backend using setTimeout
-
-///|
-pub async fn sleep_js(ms : Int64) -> Unit {
-  // FFI implementation using JavaScript's setTimeout
-  // This will be replaced with proper async implementation
-  let ms_int = ms.to_int()
-  suspend(fn(resolve, _reject) {
-    js_set_timeout(fn() { resolve(()) }, duration=ms_int)
-  })
-}
-
-///|
-extern "js" fn js_set_timeout(f : () -> Unit, duration~ : Int) -> Unit =
-  #| (f, duration) => setTimeout(f, duration)
-
 // CircuitBreaker is a state machine to prevent sending requests that are likely to fail
 
 ///|
@@ -202,15 +172,6 @@ pub fn[T, E] CircuitBreaker::new(
 
 // Get current time in milliseconds (JS backend)
 // For now, return 0 as a placeholder since FFI setup is complex
-
-///|
-extern "js" fn js_date_now() -> Int64 =
-  #| () => Date.now()
-
-///|
-fn get_current_time_ms() -> Int64 {
-  js_date_now()
-}
 
 ///|
 pub fn[T, E] CircuitBreaker::state(self : CircuitBreaker[T, E]) -> State {

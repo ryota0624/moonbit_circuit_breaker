@@ -1,1 +1,8 @@
-{}
+{
+  "targets": {
+    "ffi_js.mbt": ["js"],
+    "ffi_native.mbt": ["native"]
+  },
+  "import": ["moonbitlang/async"],
+  "supported-targets": ["js", "native"]
+}
