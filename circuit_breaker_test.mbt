@@ -103,6 +103,9 @@ test "CircuitBreaker rejects request in Open state" {
   }
   inspect(cb.state(), content="Open")
 
+  // Check expiry after transition to Open
+  inspect(cb.expiry > 0L, content="true")
+
   // Next request should be rejected
   let result = cb.run_sync(fn() -> Result[Unit, String] { Ok(()) })
   inspect(result, content="Rejected(OpenCircuit)")

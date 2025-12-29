@@ -162,6 +162,7 @@ async fn sleep(ms : Int) -> Unit {
 ///|
 /// `suspend` will suspend the execution of the current coroutine.
 /// The suspension will be handled by a callback passed to `suspend`
+#cfg(target="js")
 async fn[T, E : Error] suspend(
   // `f` is a callback for handling suspension
   f : (

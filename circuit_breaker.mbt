@@ -308,25 +308,20 @@ pub async fn[T, E : Error] CircuitBreaker::try_async(
 ///|
 fn[T, E] CircuitBreaker::state_transition_on_before_request(
   self : CircuitBreaker[T, E],
-  state : State,
   now : Int64,
 ) -> Unit {
-  match state {
+  match self.state {
     Open =>
       // Check if we need to transition from Open to HalfOpen
       if self.expiry <= now {
         self.change_state(HalfOpen, now)
-      } else {
-        ()
       }
     HalfOpen => ()
-    Closed => {
+    Closed =>
       // Check if interval has passed in Closed state
       if self.settings.interval > 0L && self.expiry <= now {
         self.to_new_generation(now)
       }
-      ()
-    }
   }
 }
 
@@ -335,10 +330,10 @@ fn[T, E] CircuitBreaker::before_request(
   self : CircuitBreaker[T, E],
 ) -> Result[Int64, CircuitBreakerError] {
   let now = get_current_time_ms()
-  self.state_transition_on_before_request(self.state, now)
+  self.state_transition_on_before_request(now)
   let generation = self.generation
   let result = match self.state {
-    Open => Err(CircuitBreakerError::OpenCircuit) // This should return proper error
+    Open => Err(CircuitBreakerError::OpenCircuit)
     HalfOpen =>
       if self.counts.requests >= self.settings.max_requests {
         CircuitBreakerError::TooManyRequests |> Err
@@ -347,7 +342,7 @@ fn[T, E] CircuitBreaker::before_request(
       }
     Closed => Ok(generation)
   }
-  if result is Err(_) {
+  if result is Ok(_) {
     self.counts.on_request()
   }
   result
