@@ -1,9 +1,1 @@
-{
-  "lsp": {
-    "moonbit": {
-      "settings": {
-        "backend": "js",
-      },
-    },
-  },
-}
+{}
