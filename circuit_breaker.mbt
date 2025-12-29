@@ -95,6 +95,7 @@ pub struct Settings[T, E] {
   ready_to_trip : (Counts) -> Bool // Function to determine if circuit should trip
   on_state_change : (String, State, State) -> Unit // Callback on state change
   is_successful : (Result[T, E]) -> Bool // Function to determine if result is successful
+  get_now : () -> Int64 // Function to get current time in milliseconds
 }
 
 ///|
@@ -112,6 +113,7 @@ pub fn[T, E] Settings::default() -> Settings[T, E] {
         Err(_) => false
       }
     },
+    get_now: fn() { get_current_time_ms() },
   }
 }
 
@@ -147,6 +149,14 @@ pub fn[T, E] Settings::with_timeout(
   { ..self, timeout, }
 }
 
+///|
+pub fn[T, E] Settings::with_get_now(
+  self : Settings[T, E],
+  get_now : () -> Int64,
+) -> Settings[T, E] {
+  { ..self, get_now, }
+}
+
 // CircuitBreaker is a state machine to prevent sending requests that are likely to fail
 
 ///|
@@ -156,18 +166,31 @@ pub struct CircuitBreaker[T, E] {
   mut generation : Int64
   counts : Counts
   mut expiry : Int64 // Timestamp in milliseconds
+  get_now : () -> Int64 // Function to get current time in milliseconds
 }
 
 ///|
 pub fn[T, E] CircuitBreaker::new(
   settings : Settings[T, E],
 ) -> CircuitBreaker[T, E] {
-  let now = get_current_time_ms()
+  let now = (settings.get_now)()
   let mut expiry = 0L
   if settings.interval > 0L {
     expiry = now + settings.interval
   }
-  { settings, state: Closed, generation: 0L, counts: Counts::new(), expiry }
+  {
+    settings,
+    state: Closed,
+    generation: 0L,
+    counts: Counts::new(),
+    expiry,
+    get_now: settings.get_now,
+  }
+}
+
+///|
+fn[T, E] CircuitBreaker::get_now(self : CircuitBreaker[T, E]) -> Int64 {
+  (self.get_now)()
 }
 
 // Get current time in milliseconds (JS backend)
@@ -329,7 +352,7 @@ fn[T, E] CircuitBreaker::state_transition_on_before_request(
 fn[T, E] CircuitBreaker::before_request(
   self : CircuitBreaker[T, E],
 ) -> Result[Int64, CircuitBreakerError] {
-  let now = get_current_time_ms()
+  let now = self.get_now()
   self.state_transition_on_before_request(now)
   let generation = self.generation
   let result = match self.state {
@@ -354,7 +377,7 @@ fn[T, E] CircuitBreaker::after_request(
   before : Int64,
   success : Bool,
 ) -> Unit {
-  let now = get_current_time_ms()
+  let now = self.get_now()
   let state = self.state
 
   // Ignore if generation has changed
