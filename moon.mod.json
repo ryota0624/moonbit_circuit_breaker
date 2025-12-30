@@ -1,11 +1,11 @@
 {
   "name": "ryota0624/circuit_breaker",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "deps": {
     "moonbitlang/async": "0.15.0"
   },
   "readme": "README.mbt.md",
-  "repository": "htps://github.com/ryota0624/moonbit_circuit_breaker",
+  "repository": "https://github.com/ryota0624/moonbit_circuit_breaker",
   "license": "Apache-2.0",
   "keywords": [],
   "description": "A circuit breaker implementation in Moonbit",
