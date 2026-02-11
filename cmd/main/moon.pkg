@@ -1,0 +1,8 @@
+import {
+  "ryota0624/circuit_breaker" @lib,
+  "moonbitlang/async" @async,
+}
+
+options(
+  "is-main": true,
+)
