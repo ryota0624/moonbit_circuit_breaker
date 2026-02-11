@@ -85,7 +85,6 @@ test "CircuitBreaker transitions to Open after consecutive failures" {
   // Default ready_to_trip is consecutive_failures > 5
   for i = 0; i < 6; i = i + 1 {
     let _result = cb.run_sync(fn() -> Result[Unit, String] { Err("error") })
-
   }
   inspect(cb.state(), content="Open")
   inspect(cb.counts().consecutive_failures(), content="0") // Cleared after state change
@@ -99,7 +98,6 @@ test "CircuitBreaker rejects request in Open state" {
   // Trip the circuit (default ready_to_trip is consecutive_failures > 5)
   for i = 0; i < 6; i = i + 1 {
     let _result = cb.run_sync(fn() -> Result[Unit, String] { Err("error") })
-
   }
   inspect(cb.state(), content="Open")
 
@@ -119,7 +117,6 @@ test "CircuitBreaker custom ready_to_trip" {
   // Execute 6 failed requests to trip the circuit
   for i = 0; i < 6; i = i + 1 {
     let _result = cb.run_sync(fn() -> Result[Unit, String] { Err("error") })
-
   }
   inspect(cb.state(), content="Open")
 }
@@ -132,7 +129,6 @@ test "CircuitBreaker state change callback" {
   // Trip the circuit
   for i = 0; i < 6; i = i + 1 {
     let _result = cb.run_sync(fn() -> Result[Unit, String] { Err("error") })
-
   }
 
   // Just check that the state changed to Open
@@ -155,7 +151,6 @@ test "CircuitBreaker transitions from Open to HalfOpen after timeout" {
   // Trip the circuit (default ready_to_trip is consecutive_failures > 5)
   for i = 0; i < 6; i = i + 1 {
     let _result = cb.run_sync(fn() -> Result[Unit, String] { Err("error") })
-
   }
 
   // State should now be Open
@@ -196,7 +191,6 @@ test "CircuitBreaker remains Open before timeout expires" {
   // Trip the circuit
   for i = 0; i < 6; i = i + 1 {
     let _result = cb.run_sync(fn() -> Result[Unit, String] { Err("error") })
-
   }
   inspect(cb.state(), content="Open")
 

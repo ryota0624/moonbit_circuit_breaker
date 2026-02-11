@@ -1,0 +1,12 @@
+import {
+  "moonbitlang/async",
+}
+
+options(
+  "supported-targets": [ "js", "native" ],
+  targets: {
+    "ffi_js.mbt": [ "js" ],
+    "ffi_native.mbt": [ "native" ],
+    "ffi_wasm_dummy.mbt": [ "wasm", "wasm-gc" ],
+  },
+)

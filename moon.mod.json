@@ -2,7 +2,7 @@
   "name": "ryota0624/circuit_breaker",
   "version": "0.1.2",
   "deps": {
-    "moonbitlang/async": "0.15.0"
+    "moonbitlang/async": "0.16.6"
   },
   "readme": "README.mbt.md",
   "repository": "https://github.com/ryota0624/moonbit_circuit_breaker",

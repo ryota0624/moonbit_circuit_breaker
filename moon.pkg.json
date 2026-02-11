@@ -1,9 +1,0 @@
-{
-  "targets": {
-    "ffi_js.mbt": ["js"],
-    "ffi_native.mbt": ["native"],
-    "ffi_wasm_dummy.mbt": ["wasm", "wasm-gc"]
-  },
-  "import": ["moonbitlang/async"],
-  "supported-targets": ["js", "native"]
-}
